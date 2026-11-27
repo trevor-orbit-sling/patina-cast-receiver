@@ -88,12 +88,42 @@ function build(media) {
   const scene = document.importNode(template.content.firstElementChild, true);
   const el = Object.fromEntries([...scene.querySelectorAll("[class]")].map(node => [node.classList[0], node]));
   const meta = media.metadata || {}, custom = media.customData || {};
+  let waveformObserver = null;
+  const waveform = Array.isArray(custom.waveform) && custom.waveform.length > 0 && custom.waveform.length <= 500 &&
+    custom.waveform.every(value => Number.isFinite(value) && value >= 0 && value <= 1)
+    ? custom.waveform : null;
   el.title.textContent = meta.title || "Unknown track";
   el.artist.textContent = meta.artist || "";
   el.album.textContent = (meta.albumName && meta.artist ? " · " : "") + (meta.albumName || "");
   if (typeof custom.quality === "string" && custom.quality.trim()) {
     el.quality.textContent = custom.quality;
     el.quality.hidden = false;
+  }
+  if (waveform) {
+    const progress = el.rail.parentElement;
+    progress.classList.add("has-waveform");
+    el.waveform.hidden = false;
+    const drawBars = () => {
+      if (!el.waveform.isConnected) return;
+      const rootSize = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      const count = Math.max(1, Math.floor(el.waveform.clientWidth / (rootSize * .4)));
+      const sampled = Array.from({length: count}, (_, index) => {
+        const start = Math.floor(index * waveform.length / count);
+        const end = Math.max(start + 1, Math.floor((index + 1) * waveform.length / count));
+        return Math.max(...waveform.slice(start, end));
+      });
+      for (const layer of [el.waveform.querySelector(".rest"), el.waveform.querySelector(".played")]) {
+        const bars = sampled.map(level => {
+          const bar = document.createElement("span");
+          bar.style.height = Math.max(.2, 1.6 * level) + "rem";
+          return bar;
+        });
+        layer.replaceChildren(...bars);
+      }
+    };
+    waveformObserver = new ResizeObserver(drawBars);
+    waveformObserver.observe(el.waveform);
+    drawBars();
   }
   applyAppearance(scene, custom);
   const artReady = albumArt(scene, artURL(meta), custom.accent, senderAccent(custom.theme?.primary));
@@ -110,7 +140,7 @@ function build(media) {
       el.lines.append(line);
     }
   }
-  return { scene, el, cues, artReady, activeCue: -1 };
+  return { scene, el, cues, artReady, waveformObserver, activeCue: -1 };
 }
 
 function showNext(next) {
@@ -148,6 +178,7 @@ export function show(media, next, state) {
   const key = JSON.stringify([media.contentId, media.metadata, media.customData]);
   if (key !== trackKey) {
     const incoming = build(media);
+    current?.waveformObserver?.disconnect();
     current = incoming;
     trackKey = key;
     queueKey = null;
@@ -196,6 +227,7 @@ export function tick(position, duration) {
   if (el.duration.textContent !== total) el.duration.textContent = total;
   const fraction = Number.isFinite(position / duration) && duration > 0 ? position / duration : 0;
   el.played.style.transform = 'translateX(' + (100 * (Math.max(0, Math.min(1, fraction)) - 1)) + '%)';
+  el.waveform?.style.setProperty("--waveform-progress", (100 * Math.max(0, Math.min(1, fraction))) + "%");
   if (!cues.length) return;
   // Upper bound works for forward playback and seeks in either direction.
   let low = 0, high = cues.length;

@@ -2,12 +2,14 @@ const tracks = [
   {
     contentId: "night-ferry", duration: 272,
     metadata: { metadataType: 3, title: "Last Light", artist: "Mira Vale", albumName: "Night Ferry", images: [{ url: "mock/night-ferry.webp" }] },
-    customData: { quality: "FLAC 24/44.1" }
+    customData: { quality: "FLAC 24/44.1", waveform: Array.from({length: 200}, (_, i) =>
+      Math.round((.16 + .76 * Math.abs(Math.sin(i * .13) * Math.cos(i * .047))) * 100) / 100) }
   },
   {
     contentId: "tidal-atlas", duration: 236,
     metadata: { metadataType: 3, title: "Soundings", artist: "June Sound", albumName: "Tidal Atlas", images: [{ url: "mock/tidal-atlas.webp" }] },
-    customData: { quality: "FLAC 16/44.1" }
+    customData: { quality: "FLAC 16/44.1", waveform: Array.from({length: 200}, (_, i) =>
+      Math.round((.12 + .82 * Math.abs(Math.sin(i * .21) * Math.sin(i * .038))) * 100) / 100) }
   }
 ];
 
