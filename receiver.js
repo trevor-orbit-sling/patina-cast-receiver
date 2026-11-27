@@ -2,11 +2,11 @@ import { show, tick } from "./view.js";
 // TEMP diagnostics: show errors and player events on screen.
 const dbgBox = document.createElement("pre");
 dbgBox.style.cssText = "position:fixed;left:8px;top:8px;z-index:99;max-width:60vw;max-height:90vh;overflow:hidden;font:14px monospace;color:#ff8;background:rgba(0,0,0,.7);padding:6px;margin:0;white-space:pre-wrap";
-document.addEventListener("DOMContentLoaded", () => document.body.append(dbgBox));
-if (document.body) document.body.append(dbgBox);
-export function dbg(...a) { dbgBox.textContent = (new Date().toISOString().slice(11,19) + " " + a.map(x => typeof x === "string" ? x : JSON.stringify(x)?.slice(0, 300)).join(" ") + "\n" + dbgBox.textContent).slice(0, 4000); }
-window.addEventListener("error", e => dbg("ERROR", e.message, e.filename?.split("/").pop() + ":" + e.lineno));
+if (document.body) document.body.append(dbgBox); else document.addEventListener("DOMContentLoaded", () => document.body.append(dbgBox));
+function dbg(...a) { dbgBox.textContent = (new Date().toISOString().slice(11,19) + " " + a.map(x => typeof x === "string" ? x : JSON.stringify(x)?.slice(0, 200)).join(" ") + "\n" + dbgBox.textContent).slice(0, 3000); }
+window.addEventListener("error", e => dbg("ERROR", e.message, (e.filename || "").split("/").pop() + ":" + e.lineno));
 window.addEventListener("unhandledrejection", e => dbg("REJECT", String(e.reason?.stack || e.reason)));
+console.error = (...a) => dbg("console.error", ...a.map(String));
 
 function startCast() {
   const caf = window.cast.framework;
@@ -15,15 +15,22 @@ function startCast() {
   const events = caf.events.EventType;
   let idleTimer;
 
+  // CAF's getters throw while a new LOAD replaces the media element. A throw in
+  // a player event handler makes CAF stop playback, so never let one escape.
+  function safe(read, fallback) {
+    try { return read(); } catch { return fallback; }
+  }
+
   function updateTime() {
-    const duration = player.getDurationSec();
-    tick(player.getCurrentTimeSec(), duration > 0 ? duration : player.getMediaInformation()?.duration);
+    const media = safe(() => player.getMediaInformation(), null);
+    if (!media) return;
+    const duration = safe(() => player.getDurationSec(), 0);
+    tick(safe(() => player.getCurrentTimeSec(), 0), duration > 0 ? duration : media.duration);
   }
 
   function update(status) {
-    try { dbg("update", status?.playerState || player.getPlayerState(), (status?.media || player.getMediaInformation())?.metadata?.title || "no media"); } catch (e) { dbg("dbgfail", String(e)); }
-    const media = status?.media || player.getMediaInformation();
-    const state = status?.playerState || player.getPlayerState();
+    const media = status?.media || safe(() => player.getMediaInformation(), null);
+    const state = status?.playerState || safe(() => player.getPlayerState(), "IDLE");
     if (!media || state === "IDLE") {
       // A sender may finish one LOAD just before delivering the next.
       idleTimer ??= setTimeout(() => { show(null, null, "IDLE"); idleTimer = null; }, 400);
@@ -31,9 +38,9 @@ function startCast() {
     }
     clearTimeout(idleTimer);
     idleTimer = null;
-    const queue = player.getQueueManager();
-    const items = queue?.getItems() || [];
-    const index = queue?.getCurrentItemIndex() ?? -1;
+    const queue = safe(() => player.getQueueManager(), null);
+    const items = safe(() => queue?.getItems(), null) || [];
+    const index = safe(() => queue?.getCurrentItemIndex(), -1) ?? -1;
     let next = items.find(item => item.itemId != null && item.itemId === status?.preloadedItemId);
     if (!next && index >= 0) {
       const repeat = status?.repeatMode;
@@ -44,11 +51,15 @@ function startCast() {
     updateTime();
   }
 
-  player.addEventListener(events.MEDIA_STATUS, event => { try { update(event.mediaStatus); } catch (e) { dbg("update threw", String(e.stack || e)); } });
+  const guard = handler => event => {
+    try { handler(event); } catch (error) { console.error("Patina receiver", error); }
+  };
+  player.addEventListener(events.MEDIA_STATUS, guard(event => update(event.mediaStatus)));
+  player.addEventListener(events.MEDIA_INFORMATION_CHANGED, guard(() => update()));
+  player.addEventListener(events.TIME_UPDATE, guard(updateTime));
   player.addEventListener(events.ERROR, e => dbg("PLAYER ERROR", e.detailedErrorCode, e.reason, e.error?.message || ""));
-  player.setMessageInterceptor(caf.messages.MessageType.LOAD, req => { dbg("LOAD", req.media?.contentId?.slice(0,80), req.media?.contentType, req.media?.metadata?.metadataType, req.media?.streamType); return req; });
-  player.addEventListener(events.MEDIA_INFORMATION_CHANGED, () => update());
-  player.addEventListener(events.TIME_UPDATE, updateTime);
+  player.addEventListener(events.PLAYER_LOAD_COMPLETE, () => dbg("loaded", safe(() => player.getMediaInformation()?.metadata?.title, "?")));
+  player.setMessageInterceptor(caf.messages.MessageType.LOAD, req => { dbg("LOAD", req.media?.metadata?.title, req.media?.contentType); return req; });
   const options = new caf.CastReceiverOptions();
   options.mediaElement = document.getElementById("audio");
   const commands = caf.messages.Command;
