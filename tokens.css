@@ -1,21 +1,32 @@
-/* The veil reaches full strength before the text column begins. */
+/* Native dark verdigris roles. One rem represents ten desktop px. */
 :root {
-  --surface: #11171b;
-  --tile: #293236;
-  --scrim: rgba(7, 10, 14, .75);
-  --pause-scrim: rgba(7, 10, 14, .88);
-  --mask-solid: #000;
-  --cover-mask: rgba(0, 0, 0, .60);
-  --lyric-mask-alpha: .78;
-  --lyric-mask: rgba(0, 0, 0, var(--lyric-mask-alpha));
-  --text: #f5f5f0;
-  --secondary: #d5d8d4;
-  --accent: #95e1d2;
-  --rail: #69716f;
-  --outline: #a3a9a5;
-  --shadow: rgba(0, 0, 0, .38);
+  --surface: #0e1513;
+  --tile: #303634;
+  --text: #dde4e1;
+  --secondary: #bec9c5;
+  --accent: #83d5c6;
+  --outline: #899390;
+  --rail: var(--tile);
+  --scrim: rgba(0, 0, 0, .70);
+  --pause-scrim: rgba(0, 0, 0, .82);
+  --shadow: rgba(0, 0, 0, .34);
   --dim: rgba(0, 0, 0, .09);
   --deep-dim: rgba(0, 0, 0, .28);
-  --radius: .65rem;
+  --font: "Noto Sans";
+  --mono: "JetBrains Mono", monospace;
+  --radius: 1.2rem;
+  --radius-s: calc(var(--radius) / 2);
+  --radius-xs: calc(var(--radius) / 3);
+  --text-xs: 1.2rem;
+  --text-m: 1.4rem;
+  --text-2xl: 2.8rem;
   --fade: 320ms;
+}
+
+/* Companion ink for a light sender surface with omitted roles. */
+.light-surface {
+  --text: #171d1b;
+  --secondary: #2b3230;
+  --accent: #003730;
+  --rail: #899390;
 }

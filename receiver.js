@@ -1,12 +1,4 @@
 import { show, tick } from "./view.js";
-// TEMP diagnostics: show errors and player events on screen.
-const dbgBox = document.createElement("pre");
-dbgBox.style.cssText = "position:fixed;left:8px;top:8px;z-index:99;max-width:60vw;max-height:90vh;overflow:hidden;font:14px monospace;color:#ff8;background:rgba(0,0,0,.7);padding:6px;margin:0;white-space:pre-wrap";
-if (document.body) document.body.append(dbgBox); else document.addEventListener("DOMContentLoaded", () => document.body.append(dbgBox));
-function dbg(...a) { dbgBox.textContent = (new Date().toISOString().slice(11,19) + " " + a.map(x => typeof x === "string" ? x : JSON.stringify(x)?.slice(0, 200)).join(" ") + "\n" + dbgBox.textContent).slice(0, 3000); }
-window.addEventListener("error", e => dbg("ERROR", e.message, (e.filename || "").split("/").pop() + ":" + e.lineno));
-window.addEventListener("unhandledrejection", e => dbg("REJECT", String(e.reason?.stack || e.reason)));
-console.error = (...a) => dbg("console.error", ...a.map(String));
 
 function startCast() {
   const caf = window.cast.framework;
@@ -57,9 +49,6 @@ function startCast() {
   player.addEventListener(events.MEDIA_STATUS, guard(event => update(event.mediaStatus)));
   player.addEventListener(events.MEDIA_INFORMATION_CHANGED, guard(() => update()));
   player.addEventListener(events.TIME_UPDATE, guard(updateTime));
-  player.addEventListener(events.ERROR, e => dbg("PLAYER ERROR", e.detailedErrorCode, e.reason, e.error?.message || ""));
-  player.addEventListener(events.PLAYER_LOAD_COMPLETE, () => dbg("loaded", safe(() => player.getMediaInformation()?.metadata?.title, "?")));
-  player.setMessageInterceptor(caf.messages.MessageType.LOAD, req => { dbg("LOAD", req.media?.metadata?.title, req.media?.contentType); return req; });
   const options = new caf.CastReceiverOptions();
   options.mediaElement = document.getElementById("audio");
   const commands = caf.messages.Command;

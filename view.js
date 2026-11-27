@@ -1,4 +1,4 @@
-import { readable, sample, senderAccent } from "./palette.js";
+import { luminance, readable, sample, senderAccent } from "./palette.js";
 
 const tracks = document.querySelector("#tracks");
 const idle = document.querySelector("#idle");
@@ -25,10 +25,42 @@ function artURL(meta) {
   return "";
 }
 
-async function albumArt(scene, url, customAccent) {
-  const apply = rgb => { if (rgb) scene.style.setProperty("--accent", readable(rgb)); };
+// Render once per sleeve, at the same 256 px / 14 px blur as native v3.
+function paintBackdrop(canvas, image) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  const edge = Math.min(image.naturalWidth, image.naturalHeight);
+  const size = canvas.width;
+  const bleed = 32;
+  ctx.filter = "blur(14px)";
+  ctx.drawImage(image, (image.naturalWidth - edge) / 2, (image.naturalHeight - edge) / 2,
+    edge, edge, -bleed, -bleed, size + 2 * bleed, size + 2 * bleed);
+}
+
+function applyAppearance(scene, {font, radius, theme}) {
+  if (["Noto Sans", "Inter", "JetBrains Mono"].includes(font)) {
+    scene.style.setProperty("--font", '"' + font + '"');
+  }
+  if (Number.isFinite(radius)) {
+    scene.style.setProperty("--radius", Math.max(0, Math.min(24, radius)) / 10 + "rem");
+  }
+  const roles = {surface: "--surface", onSurface: "--text", onSurfaceVariant: "--secondary", primary: "--accent"};
+  for (const [role, token] of Object.entries(roles)) {
+    const rgb = senderAccent(theme?.[role]);
+    if (!rgb) continue;
+    scene.style.setProperty(token, theme[role]);
+    if (role === "surface") {
+      scene.classList.toggle("light-surface", luminance(rgb) > .20);
+      scene.style.setProperty("--scrim", 'rgba(' + rgb.join(',') + ', .90)');
+      scene.style.setProperty("--pause-scrim", 'rgba(' + rgb.join(',') + ', .96)');
+    }
+  }
+}
+
+async function albumArt(scene, url, customAccent, themePrimary) {
+  const apply = rgb => { if (rgb) scene.style.setProperty("--accent", readable(rgb, scene.classList.contains("light-surface"))); };
   const preset = senderAccent(customAccent);
-  apply(preset);
+  if (!themePrimary) apply(preset);
   if (!url) return;
   const img = new Image();
   img.alt = "";
@@ -44,8 +76,12 @@ async function albumArt(scene, url, customAccent) {
     try { await img.decode(); } catch { return; }
   }
   scene.querySelector(".sleeve").replaceChildren(img);
-  scene.querySelector(".backdrop").replaceChildren(img.cloneNode());
-  if (!preset && img.crossOrigin) apply(sample(img));
+  // Canvas allocation or pixel access can fail on a receiver. The sleeve and
+  // metadata are already usable and the incoming scene must still resolve.
+  try {
+    paintBackdrop(scene.querySelector(".backdrop"), img);
+    if (!themePrimary && !preset && img.crossOrigin) apply(sample(img));
+  } catch { /* Keep the available art and theme roles. */ }
 }
 
 function build(media) {
@@ -59,7 +95,8 @@ function build(media) {
     el.quality.textContent = custom.quality;
     el.quality.hidden = false;
   }
-  const artReady = albumArt(scene, artURL(meta), custom.accent);
+  applyAppearance(scene, custom);
+  const artReady = albumArt(scene, artURL(meta), custom.accent, senderAccent(custom.theme?.primary));
   const cues = Array.isArray(custom.lyrics) ? custom.lyrics.filter(cue =>
     Number.isFinite(cue?.t_ms) && cue.t_ms >= 0 && typeof cue.line === "string"
   ).sort((a, b) => a.t_ms - b.t_ms) : [];
@@ -77,12 +114,11 @@ function build(media) {
 }
 
 function showNext(next) {
-  const { el, cues } = current;
+  const { el } = current;
   const meta = next?.metadata;
-  el.next.hidden = cues.length > 0 || !meta;
+  el.next.hidden = !meta;
   if (el.next.hidden) return;
-  el["next-title"].textContent = meta.title || "Unknown track";
-  el["next-artist"].textContent = meta.artist || meta.albumName || "";
+  el["next-title"].textContent = [meta.title || "Unknown track", meta.artist || meta.albumName].filter(Boolean).join(" · ");
   el["next-time"].textContent = Number.isFinite(next.duration) ? clock(next.duration) : "";
   const url = artURL(meta);
   el.thumb.hidden = !url;
@@ -143,7 +179,7 @@ export function show(media, next, state) {
     } else reveal();
   }
   current.el.status.textContent = state === "PAUSED" ? "Paused" :
-    state === "PLAYING" ? "Now playing" : "Loading";
+    state === "PLAYING" ? "Playing on TV" : "Loading";
   const nextKey = JSON.stringify([next?.metadata, next?.duration]);
   if (nextKey !== queueKey) {
     showNext(next);
@@ -155,10 +191,11 @@ export function tick(position, duration) {
   if (!current) return;
   current.clock = { position, duration };
   const { el, cues } = current;
-  el.position.textContent = clock(position);
-  el.duration.textContent = clock(duration);
+  const elapsed = clock(position), total = clock(duration);
+  if (el.position.textContent !== elapsed) el.position.textContent = elapsed;
+  if (el.duration.textContent !== total) el.duration.textContent = total;
   const fraction = Number.isFinite(position / duration) && duration > 0 ? position / duration : 0;
-  el.played.style.transform = 'scaleX(' + Math.max(0, Math.min(1, fraction)) + ')';
+  el.played.style.transform = 'translateX(' + (100 * (Math.max(0, Math.min(1, fraction)) - 1)) + '%)';
   if (!cues.length) return;
   // Upper bound works for forward playback and seeks in either direction.
   let low = 0, high = cues.length;
@@ -173,6 +210,7 @@ export function tick(position, duration) {
   el.lines.children[previous]?.classList.remove("current");
   current.activeCue = index;
   const line = el.lines.children[index];
+  el["cue-count"].textContent = index >= 0 ? `Line ${index + 1} of ${cues.length}` : "";
   if (line) {
     line.classList.add("current");
     if (!current.scene.isConnected) return;
@@ -180,12 +218,9 @@ export function tick(position, duration) {
     const bounds = el.lines.getBoundingClientRect();
     const offset = line.getBoundingClientRect().top - bounds.top + el.lines.scrollTop;
     const target = Math.round((offset - Math.max(0, (bounds.height - line.offsetHeight) / 2)) / step) * step;
-    el.lyrics.classList.toggle("at-start", target <= 0);
-    el.lyrics.classList.toggle("at-end", target >= el.lines.scrollHeight - el.lines.clientHeight);
     const follow = previous >= 0 && index === previous + 1 && !matchMedia("(prefers-reduced-motion: reduce)").matches;
     el.lines.scrollTo({ top: target, behavior: follow ? "smooth" : "instant" });
   } else {
     el.lines.scrollTo({ top: 0, behavior: "instant" });
-    el.lyrics.classList.add("at-start");
   }
 }

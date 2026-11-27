@@ -31,17 +31,22 @@ export function senderAccent(hex) {
   }
 }
 
-// The scrim caps background luminance even over white. Target 0.60 for text
-// and progress so the additional 28% long-pause dim still clears 4.5:1.
-export function readable(rgb) {
-  const luminance = values => values.reduce((total, value, channel) => {
+export function luminance(rgb) {
+  return rgb.reduce((total, value, channel) => {
     const s = value / 255;
     const linear = s <= .04045 ? s / 12.92 : ((s + .055) / 1.055) ** 2.4;
     return total + linear * [.2126, .7152, .0722][channel];
   }, 0);
+}
+
+// The scrim caps background luminance even over white. Target 0.60 for text
+// and progress so the additional 28% long-pause dim still clears 4.5:1.
+export function readable(rgb, lightSurface = false) {
   let result = rgb.map(Math.round);
-  while (luminance(result) < .60) {
-    result = result.map(channel => Math.ceil(channel + (255 - channel) * .06));
+  if (lightSurface) {
+    while (luminance(result) > .035) result = result.map(channel => Math.floor(channel * .94));
+  } else {
+    while (luminance(result) < .60) result = result.map(channel => Math.ceil(channel + (255 - channel) * .06));
   }
   return 'rgb(' + result.join(',') + ')';
 }
