@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://www.gstatic.com/cast/sdk/libs/; style-src 'self'; font-src 'self'; img-src 'self' https:; media-src 'self' https: blob:; connect-src 'self' https:; base-uri 'none'; object-src 'none'; form-action 'none'">
+  <link rel="icon" href="assets/patina.png">
+  <link rel="preload" href="assets/noto-sans-latin-wght-normal.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="receiver.css">
+  <title>Patina Player</title>
+  <script type="module" src="receiver.js"></script>
+</head>
+<body>
+  <audio id="audio"></audio>
+  <main>
+    <div id="idle"><img src="assets/patina.png" alt=""><h1>Patina Player</h1></div>
+    <div id="tracks"></div>
+  </main>
+  <template id="track">
+    <section class="scene" aria-label="Now playing">
+      <div class="backdrop" aria-hidden="true"></div>
+      <div class="veil"></div>
+      <div class="layout">
+        <div class="sleeve">
+          <svg class="disc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2"/></svg>
+        </div>
+        <div class="info">
+          <header>
+            <h1 class="title clamp" dir="auto"></h1>
+            <p class="byline clamp" dir="auto"><strong class="artist"></strong><span class="album"></span></p>
+          </header>
+          <div class="progress">
+            <div class="playback-facts">
+              <div class="state"><span class="meter" aria-hidden="true"><i></i><i></i><i></i></span><span class="status"></span></div>
+              <span class="quality" hidden></span>
+            </div>
+            <div class="rail"><div class="played"></div></div>
+            <div class="times"><span class="position"></span><span class="duration"></span></div>
+          </div>
+          <aside>
+            <div class="next" hidden>
+              <div class="thumb" hidden></div>
+              <div class="queue-text"><p class="caption">Next up</p><p class="next-title clamp" dir="auto"></p><p class="next-artist clamp" dir="auto"></p></div>
+              <span class="next-time"></span>
+            </div>
+            <div class="lyrics" role="region" aria-label="Synced lyrics" hidden><div class="lines"></div></div>
+          </aside>
+        </div>
+      </div>
+    </section>
+  </template>
+</body>
+</html>
