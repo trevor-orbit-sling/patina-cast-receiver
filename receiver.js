@@ -1,4 +1,12 @@
 import { show, tick } from "./view.js";
+// TEMP diagnostics: show errors and player events on screen.
+const dbgBox = document.createElement("pre");
+dbgBox.style.cssText = "position:fixed;left:8px;top:8px;z-index:99;max-width:60vw;max-height:90vh;overflow:hidden;font:14px monospace;color:#ff8;background:rgba(0,0,0,.7);padding:6px;margin:0;white-space:pre-wrap";
+document.addEventListener("DOMContentLoaded", () => document.body.append(dbgBox));
+if (document.body) document.body.append(dbgBox);
+export function dbg(...a) { dbgBox.textContent = (new Date().toISOString().slice(11,19) + " " + a.map(x => typeof x === "string" ? x : JSON.stringify(x)?.slice(0, 300)).join(" ") + "\n" + dbgBox.textContent).slice(0, 4000); }
+window.addEventListener("error", e => dbg("ERROR", e.message, e.filename?.split("/").pop() + ":" + e.lineno));
+window.addEventListener("unhandledrejection", e => dbg("REJECT", String(e.reason?.stack || e.reason)));
 
 function startCast() {
   const caf = window.cast.framework;
@@ -13,6 +21,7 @@ function startCast() {
   }
 
   function update(status) {
+    try { dbg("update", status?.playerState || player.getPlayerState(), (status?.media || player.getMediaInformation())?.metadata?.title || "no media"); } catch (e) { dbg("dbgfail", String(e)); }
     const media = status?.media || player.getMediaInformation();
     const state = status?.playerState || player.getPlayerState();
     if (!media || state === "IDLE") {
@@ -35,7 +44,9 @@ function startCast() {
     updateTime();
   }
 
-  player.addEventListener(events.MEDIA_STATUS, event => update(event.mediaStatus));
+  player.addEventListener(events.MEDIA_STATUS, event => { try { update(event.mediaStatus); } catch (e) { dbg("update threw", String(e.stack || e)); } });
+  player.addEventListener(events.ERROR, e => dbg("PLAYER ERROR", e.detailedErrorCode, e.reason, e.error?.message || ""));
+  player.setMessageInterceptor(caf.messages.MessageType.LOAD, req => { dbg("LOAD", req.media?.contentId?.slice(0,80), req.media?.contentType, req.media?.metadata?.metadataType, req.media?.streamType); return req; });
   player.addEventListener(events.MEDIA_INFORMATION_CHANGED, () => update());
   player.addEventListener(events.TIME_UPDATE, updateTime);
   const options = new caf.CastReceiverOptions();
