@@ -62,6 +62,7 @@ function startCast() {
   player.addEventListener(events.PLAYER_LOAD_COMPLETE, () => dbg("LOAD_COMPLETE"));
   const options = new caf.CastReceiverOptions();
   options.mediaElement = document.getElementById("audio");
+  options.skipPlayersLoad = true;
   const commands = caf.messages.Command;
   options.supportedCommands = commands.ALL_BASIC_MEDIA | commands.QUEUE_NEXT | commands.QUEUE_PREV;
   context.start(options);
