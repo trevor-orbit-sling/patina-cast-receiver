@@ -61,7 +61,8 @@ function startCast() {
   player.addEventListener(events.REQUEST_LOAD, e => { const m = e.requestData?.media; dbg("REQUEST_LOAD", m?.metadata?.title, m?.contentType, "customData bytes", JSON.stringify(m?.customData || {}).length, "queue", e.requestData?.queueData?.items?.length); });
   player.addEventListener(events.PLAYER_LOAD_COMPLETE, () => dbg("LOAD_COMPLETE"));
   const options = new caf.CastReceiverOptions();
-  options.mediaElement = document.getElementById("audio");
+  // CastReceiverOptions has no mediaElement; hand CAF our <audio> the documented way.
+  player.setMediaElement(document.getElementById("audio"));
   options.skipPlayersLoad = true;
   const commands = caf.messages.Command;
   options.supportedCommands = commands.ALL_BASIC_MEDIA | commands.QUEUE_NEXT | commands.QUEUE_PREV;
