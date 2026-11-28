@@ -14,10 +14,12 @@ const tracks = [
 ];
 
 export function startMock(show, tick) {
-  const scene = new URLSearchParams(location.search).get("scene");
+  const params = new URLSearchParams(location.search);
+  const scene = params.get("scene");
+  const pinnedTime = scene === "lyrics" && params.has("at") && Number.isFinite(Number(params.get("at")));
   let index = scene === "pale" ? 1 : 0;
   let state = scene === "idle" ? "IDLE" : scene === "paused" ? "PAUSED" : "PLAYING";
-  let position = 94;
+  let position = pinnedTime ? Math.max(0, Number(params.get("at"))) : 94;
   let started = performance.now();
   const media = structuredClone(tracks);
 
@@ -27,25 +29,27 @@ export function startMock(show, tick) {
     media[0].metadata.artist = "The International Ensemble for Electroacoustic Music and Unaccompanied Voices with the Midnight Harbour Orchestra";
   }
   if (scene === "lyrics") {
-    media[0].customData.lyrics = [
-      { t_ms: 0, line: "The ferry leaves before the light" },
-      { t_ms: 16000, line: "A gull lifts from the railing" },
-      { t_ms: 32000, line: "The ropes come up in coils" },
-      { t_ms: 48000, line: "Our wake runs through the harbour" },
-      { t_ms: 64000, line: "The empty slips fall quiet" },
-      { t_ms: 78000, line: "One last lamp along the quay" },
-      { t_ms: 92000, line: "I count the windows on the hillside" },
-      { t_ms: 99000, line: "Till the river turns to sea" },
-      { t_ms: 104000, line: "Your coat still smells of cedar" },
-      { t_ms: 117000, line: "My ticket folds along the seam" },
+    if (params.get("cover") === "pale") index = 1;
+    if (params.get("cover") === "dark") media[0].metadata.images[0].url = "mock/after-dark.webp";
+    media[index].customData.lyrics = [
+      { t_ms: 5000, line: "The ferry leaves before the light" },
+      { t_ms: 10000, line: "A gull lifts from the railing" },
+      { t_ms: 15000, line: "The ropes come up in coils" },
+      { t_ms: 78000, line: "Our wake runs through the harbour" },
+      { t_ms: 83000, line: "The empty slips fall quiet" },
+      { t_ms: 88000, line: "One last lamp along the quay" },
+      { t_ms: 92000, line: "I count the windows on the hillside till the last one slips from view" },
+      { t_ms: 97000, line: "Till the river turns to sea" },
+      { t_ms: 102000, line: "Your coat still smells of cedar" },
+      { t_ms: 107000, line: "My ticket folds along the seam" },
       { t_ms: 130000, line: "I hold the shoreline in my palm" },
-      { t_ms: 146000, line: "Until the morning comes" },
-      { t_ms: 160000, line: "The buoys lean with the tide" },
-      { t_ms: 175000, line: "We leave the lights behind" }
+      { t_ms: 135000, line: "Until the morning comes" },
+      { t_ms: 140000, line: "The buoys lean with the tide" },
+      { t_ms: 145000, line: "We leave the lights behind" }
     ];
   }
 
-  const elapsed = () => position + (state === "PLAYING" ? (performance.now() - started) / 1000 : 0);
+  const elapsed = () => position + (state === "PLAYING" && !pinnedTime ? (performance.now() - started) / 1000 : 0);
   function render() {
     show(media[index], media[1 - index], state);
     tick(elapsed(), media[index].duration);

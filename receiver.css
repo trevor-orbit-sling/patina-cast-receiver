@@ -19,6 +19,7 @@ main { position: fixed; inset: -5px; animation: drift 117s linear infinite alter
 .veil { background: var(--scrim); }
 body[data-state="PAUSED"] .veil { background: var(--pause-scrim); }
 .layout { gap: 4.8rem; }
+.record { display: contents; }
 .sleeve {
   position: relative; width: 33rem; height: 33rem; flex: none;
   display: grid; place-items: center; overflow: hidden;
@@ -34,11 +35,10 @@ header { min-width: 0; }
 .title, .byline { -webkit-line-clamp: 2; }
 .byline { margin-top: .55rem; color: var(--secondary); }
 .artist { font-weight: 600; color: var(--text); }
-.playback-facts, .state, .lyric-heading, .next, .times { display: flex; align-items: center; }
+.playback-facts, .state, .next, .times { display: flex; align-items: center; }
 .playback-facts { gap: 1rem; margin-top: .85rem; }
-.state, .lyric-heading { gap: .55rem; font-weight: 600; }
-.state { color: var(--accent); }
-.state svg, .lyric-heading svg {
+.state { gap: .55rem; font-weight: 600; color: var(--accent); }
+.state svg {
   width: 1.4rem; height: 1.4rem; flex: none; fill: none;
   stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
 }
@@ -64,27 +64,61 @@ header { min-width: 0; }
 }
 .waveform-bars.played span { background: var(--accent); }
 .progress.has-waveform .rail { display: none; }
-.times, .cue-count, .next-time { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.times, .next-time { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .times { margin-top: .5rem; justify-content: space-between; }
-.times, .cue-count, .next-time, .caption { font-size: var(--text-xs); color: var(--secondary); }
+.times, .next-time, .caption { font-size: var(--text-xs); color: var(--secondary); }
 .next { min-height: 4.8rem; padding: .6rem 1.2rem; gap: 1.2rem; border-radius: var(--radius-s); }
 .thumb { width: 3.6rem; height: 3.6rem; flex: none; border-radius: var(--radius-xs); overflow: hidden; background: var(--tile); }
 .thumb img { width: 100%; height: 100%; object-fit: cover; }
 .queue-text { min-width: 0; flex: 1; }
 .next-title { font-weight: 600; }
-.with-lyrics .layout { gap: 5.6rem; }
-.with-lyrics .sleeve { width: 28rem; height: 28rem; }
-.with-lyrics .info { width: 46rem; gap: 1rem; }
-.with-lyrics .title { font-size: 2.5rem; }
-.with-lyrics .byline { -webkit-line-clamp: 1; }
-.lyric-heading { margin-bottom: .35rem; }
-.lines {
-  --lyric-step: 2.6rem;
-  height: calc(9 * var(--lyric-step)); overflow: hidden; overflow-wrap: anywhere; overflow-anchor: none;
+.with-lyrics .layout { gap: 6rem; }
+.with-lyrics .record { width: 26rem; display: grid; gap: 1.45rem; }
+.with-lyrics .sleeve { width: 100%; height: 26rem; }
+.with-lyrics .info { width: 100%; gap: 1.15rem; }
+.with-lyrics .title { font-size: 2rem; line-height: 1.2; }
+.with-lyrics .byline { font-size: 1.25rem; margin-top: .3rem; }
+.with-lyrics .artist { color: inherit; font-weight: 500; }
+.with-lyrics .waveform { height: 1.6rem; }
+.with-lyrics .times { font-size: 1rem; }
+.with-lyrics .playback-facts { display: none; }
+.lyrics {
+  width: 48rem; height: 28rem; position: relative; overflow: hidden;
+  -webkit-mask-image: linear-gradient(transparent, currentColor 18%, currentColor 82%, transparent);
+  mask-image: linear-gradient(transparent, currentColor 18%, currentColor 82%, transparent);
 }
-.lines p { color: var(--secondary); font-size: 1.7rem; font-weight: 500; line-height: var(--lyric-step); }
-.lines .current { color: var(--text); font-size: 2.6rem; font-weight: 700; }
-.cue-count { margin-top: .45rem; }
+.lines {
+  position: absolute; top: 50%; width: 100%; display: grid; gap: 1.45rem;
+  visibility: hidden;
+}
+.lines.ready { visibility: visible; }
+.lines.follow { transition: transform var(--lyric-follow) cubic-bezier(.22,.68,.2,1); }
+.lyric {
+  display: grid; align-items: center; min-height: 3.6rem;
+  font-size: 2.6rem; line-height: 1.32; overflow-wrap: anywhere;
+  font-weight: 450; opacity: 0;
+}
+/* Reserve the bold, wrapped height before a cue is sung. Changing emphasis
+   never moves the rows above or below it. */
+.lyric::before, .lyric > span { grid-area: 1 / 1; }
+.lyric::before { content: attr(data-line); visibility: hidden; font-weight: 700; }
+.lyric > span { transform-origin: left center; transform: scale(.86); }
+.lyric:dir(rtl) > span { transform-origin: right center; }
+.lyric.far { opacity: .24; }
+.lyric.near { opacity: .53; font-weight: 550; }
+.lyric.near > span { transform: scale(.93); }
+.lyric.current { opacity: 1; font-weight: 700; }
+.lyric.current > span { transform: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .lines.follow .lyric { transition: opacity var(--lyric-follow) ease-out; }
+  .lines.follow .lyric > span { transition: transform var(--lyric-follow) ease-out; }
+}
+.lyric.gap > span { display: flex; gap: .48rem; align-items: center; }
+.lyric.gap i { width: .48rem; height: .48rem; border-radius: 50%; background: var(--secondary); }
+.lyric.gap:not(.current) { opacity: 0; }
+.lyric.gap.current > span { opacity: .65; }
+body[data-state="PLAYING"] .gap.current > span { animation: breathe 2.6s ease-in-out infinite alternate; }
+@keyframes breathe { from { opacity: .35; } to { opacity: .7; } }
 body::after { content: ""; position: fixed; inset: 0; pointer-events: none; transition: background 1s; }
 body[data-state="PAUSED"]::after { background: var(--dim); }
 body.deep-pause::after { background: var(--deep-dim); }
@@ -92,7 +126,8 @@ body:not([data-state="PLAYING"]) .backdrop { animation-play-state: paused; }
 @keyframes pan { from { transform: scale(1); } to { transform: scale(1.12); } }
 @keyframes drift { 0% { transform: translate(-2px, -2px); } 57% { transform: translate(3px, 1px); } 100% { transform: translate(-1px, 3px); } }
 @media (prefers-reduced-motion: reduce) {
-  main, .backdrop { animation: none; }
+  main, .backdrop, body[data-state="PLAYING"] .gap.current > span { animation: none; }
+  .lines.follow { transition: none; }
   body::after { transition: none; }
   :root { --fade: 0ms; }
 }

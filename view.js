@@ -1,3 +1,4 @@
+import { buildLyrics } from "./lyrics.js";
 import { luminance, readable, sample, senderAccent } from "./palette.js";
 
 const tracks = document.querySelector("#tracks");
@@ -127,20 +128,12 @@ function build(media) {
   }
   applyAppearance(scene, custom);
   const artReady = albumArt(scene, artURL(meta), custom.accent, senderAccent(custom.theme?.primary));
-  const cues = Array.isArray(custom.lyrics) ? custom.lyrics.filter(cue =>
-    Number.isFinite(cue?.t_ms) && cue.t_ms >= 0 && typeof cue.line === "string"
-  ).sort((a, b) => a.t_ms - b.t_ms) : [];
-  if (cues.length) {
+  const lyrics = buildLyrics(el.lines, custom.lyrics);
+  if (lyrics) {
     scene.classList.add("with-lyrics");
     el.lyrics.hidden = false;
-    for (const cue of cues) {
-      const line = document.createElement("p");
-      line.dir = "auto";
-      line.textContent = cue.line;
-      el.lines.append(line);
-    }
   }
-  return { scene, el, cues, artReady, waveformObserver, activeCue: -1 };
+  return { scene, el, lyrics, artReady, waveformObserver };
 }
 
 function showNext(next) {
@@ -170,6 +163,8 @@ export function show(media, next, state) {
     if (state === "PAUSED") pauseTimer = setTimeout(() => document.body.classList.add("deep-pause"), 600000);
   }
   if (!media || state === "IDLE") {
+    current?.waveformObserver?.disconnect();
+    current?.lyrics?.disconnect();
     current = trackKey = queueKey = null;
     tracks.replaceChildren();
     idle.hidden = false;
@@ -179,6 +174,7 @@ export function show(media, next, state) {
   if (key !== trackKey) {
     const incoming = build(media);
     current?.waveformObserver?.disconnect();
+    current?.lyrics?.disconnect();
     current = incoming;
     trackKey = key;
     queueKey = null;
@@ -191,10 +187,7 @@ export function show(media, next, state) {
         previous.setAttribute("aria-hidden", "true");
       }
       tracks.append(incoming.scene);
-      incoming.activeCue = -1;
-      // The queue can advance while paused. Position lyrics after the incoming
-      // scene has a layout, even if CAF sends no further clock event.
-      if (incoming.clock) tick(incoming.clock.position, incoming.clock.duration);
+      incoming.lyrics?.connect();
       idle.hidden = true;
       if (previous) {
         const duration = parseFloat(getComputedStyle(incoming.scene).getPropertyValue("--fade"));
@@ -209,8 +202,10 @@ export function show(media, next, state) {
       incoming.artReady.then(() => { clearTimeout(deadline); reveal(); });
     } else reveal();
   }
-  current.el.status.textContent = state === "PAUSED" ? "Paused" :
-    state === "PLAYING" ? "Playing on TV" : "Loading";
+  current.el.state.hidden = state === "PLAYING";
+  current.el.status.textContent = state === "PAUSED" ? "Paused" : state === "PLAYING" ? "" : "Loading";
+  current.el["playback-facts"].hidden = current.el.quality.hidden && current.el.state.hidden;
+  if (current.lyrics) return;
   const nextKey = JSON.stringify([next?.metadata, next?.duration]);
   if (nextKey !== queueKey) {
     showNext(next);
@@ -220,39 +215,12 @@ export function show(media, next, state) {
 
 export function tick(position, duration) {
   if (!current) return;
-  current.clock = { position, duration };
-  const { el, cues } = current;
+  const { el } = current;
   const elapsed = clock(position), total = clock(duration);
   if (el.position.textContent !== elapsed) el.position.textContent = elapsed;
   if (el.duration.textContent !== total) el.duration.textContent = total;
   const fraction = Number.isFinite(position / duration) && duration > 0 ? position / duration : 0;
   el.played.style.transform = 'translateX(' + (100 * (Math.max(0, Math.min(1, fraction)) - 1)) + '%)';
   el.waveform?.style.setProperty("--waveform-progress", (100 * Math.max(0, Math.min(1, fraction))) + "%");
-  if (!cues.length) return;
-  // Upper bound works for forward playback and seeks in either direction.
-  let low = 0, high = cues.length;
-  while (low < high) {
-    const mid = (low + high) >>> 1;
-    if (cues[mid].t_ms <= position * 1000) low = mid + 1;
-    else high = mid;
-  }
-  const index = low - 1;
-  if (index === current.activeCue) return;
-  const previous = current.activeCue;
-  el.lines.children[previous]?.classList.remove("current");
-  current.activeCue = index;
-  const line = el.lines.children[index];
-  el["cue-count"].textContent = index >= 0 ? `Line ${index + 1} of ${cues.length}` : "";
-  if (line) {
-    line.classList.add("current");
-    if (!current.scene.isConnected) return;
-    const step = parseFloat(getComputedStyle(line).lineHeight);
-    const bounds = el.lines.getBoundingClientRect();
-    const offset = line.getBoundingClientRect().top - bounds.top + el.lines.scrollTop;
-    const target = Math.round((offset - Math.max(0, (bounds.height - line.offsetHeight) / 2)) / step) * step;
-    const follow = previous >= 0 && index === previous + 1 && !matchMedia("(prefers-reduced-motion: reduce)").matches;
-    el.lines.scrollTo({ top: target, behavior: follow ? "smooth" : "instant" });
-  } else {
-    el.lines.scrollTo({ top: 0, behavior: "instant" });
-  }
+  current.lyrics?.tick(position, duration);
 }
