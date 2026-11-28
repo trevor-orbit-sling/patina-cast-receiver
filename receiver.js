@@ -5,6 +5,7 @@ dbgBox.style.cssText = "position:fixed;left:8px;top:8px;z-index:99;max-width:60v
 if (document.body) document.body.append(dbgBox); else document.addEventListener("DOMContentLoaded", () => document.body.append(dbgBox));
 function dbg(...a) { dbgBox.textContent = (new Date().toISOString().slice(11,19) + " " + a.map(x => typeof x === "string" ? x : JSON.stringify(x)?.slice(0, 200)).join(" ") + "\n" + dbgBox.textContent).slice(0, 3000); }
 window.addEventListener("error", e => dbg("ERROR", e.message, (e.filename || "").split("/").pop() + ":" + e.lineno, String(e.error?.stack || "").slice(0, 300)));
+document.addEventListener("securitypolicyviolation", e => dbg("CSP BLOCKED", e.violatedDirective, e.blockedURI, (e.sourceFile||"").split("/").pop()+":"+e.lineNumber));
 window.addEventListener("unhandledrejection", e => dbg("REJECT", String(e.reason?.stack || e.reason)));
 const origErr = console.error; console.error = (...a) => { dbg("console.error", ...a.map(String)); origErr(...a); };
 
